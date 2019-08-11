@@ -1,77 +1,67 @@
-# Copyright (c) 2019 Advanced Micro Devices, Inc.
- 
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
- 
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
- 
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-# THE SOFTWARE.
+TARGETS= main bm
 
-# Author: Alex D. Breslow 
-#         Advanced Micro Devices, Inc.
-#         AMD Research
-#
-# Code Source: https://github.com/AMDComputeLibraries/morton_filter
-#
-# VLDB 2018 Paper: https://www.vldb.org/pvldb/vol11/p1041-breslow.pdf
-#
-# How To Cite:
-#  Alex D. Breslow and Nuwan S. Jayasena. Morton Filters: Faster, Space-Efficient
-#  Cuckoo Filters Via Biasing, Compression, and Decoupled Logical Sparsity. PVLDB,
-#  11(9):1041-1055, 2018
-#  DOI: https://doi.org/10.14778/3213880.3213884
-
-
-ifndef CXX
-  CXX=g++ # Code uses GCC builtins.  I do not recommend changing the compiler.
+ifdef D
+	DEBUG=-g
+	OPT=
+else
+	DEBUG=
+	OPT=-Ofast
 endif
 
-OPT=-Ofast -march=native -mpopcnt 
+ifdef NH
+	ARCH=
+else
+	ARCH=-msse4.2 -D__SSE4_2_
+endif
 
-FLAGS:=-Wall -Winline -g -std=c++11 $(OPT)
+ifdef P
+	PROFILE=-pg -no-pie # for bug in gprof.
+endif
 
-TARGETS=benchmark \
-  benchmark_cf benchmark_mf \
-  benchmark_ss_cf measure_bucket_accesses
+CXX = g++ -std=c++11 -mavx2
+CC = gcc -std=gnu11 -mavx2
+LD= g++ -std=c++11
 
-CLEAN=rm -f *.o *.a *.so *.lo *.s $(TARGETS)
+LOC_INCLUDE=include
+LOC_SRC=src
+OBJDIR=obj
 
-HEADERS=$(wildcard *.h)
-SRCS=$(wildcard *.cc)
+CXXFLAGS += -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) -m64 -I. -I$(LOC_INCLUDE)
 
-# Relative path to the original cuckoo filter source code
-CUCKOO_REFERENCE_DIR=./cuckoofilter
+CFLAGS += -Wall $(DEBUG) $(PROFILE) $(OPT) $(ARCH) -m64 -I. -I$(LOC_INCLUDE)
 
-INCLUDE=-I$(CUCKOO_REFERENCE_DIR)/src -I../
-LDFLAGS="$(CUCKOO_REFERENCE_DIR)"/src/hashutil.o -lcrypto -lm
+LDFLAGS += $(DEBUG) $(PROFILE) $(OPT) -lpthread -lssl -lcrypto -lm
 
-# Patches the baseline cuckoo filter implementation and then builds the 
-# performance benchmarking programs
-default: $(HEADERS) $(SRCS)
-	cd .; \
-  if [ ! -d ./cuckoofilter ]; then \
-    git clone https://github.com/efficient/cuckoofilter.git; \
-    cd ./cuckoofilter; \
-    git checkout 4593377e64cb37342b44bfcee0655104c7dfaa64; \
-    git apply ../cf_benchmarking.patch; \
-  fi
+#
+# declaration of dependencies
+#
 
-	$(CXX) $(INCLUDE) $(FLAGS) benchmark.cc -o benchmark
-	cp benchmark_mf_config.h.template benchmark_mf_config.h && $(CXX) $(INCLUDE) $(FLAGS) benchmark_mf.cc -o benchmark_mf 
-	$(CXX) $(INCLUDE) $(FLAGS) -DNDEBUG benchmark_cf.cc -o benchmark_cf
-	$(CXX) $(INCLUDE) $(FLAGS) -DNDEBUG benchmark_ss_cf.cc -o benchmark_ss_cf
-	$(CXX) $(INCLUDE) $(FLAGS) measure_bucket_accesses.cc -o measure_bucket_accesses
+all: $(TARGETS)
+
+# dependencies between programs and .o files
+main:						main.o 
+bm:							bm.o 
+
+# dependencies between .o files and .cc (or .c) files
+main.o: 			main.cc
+bm.o: 			bm.cc morton_wrapper.h
+
+#
+# generic build rules
+#
+
+$(TARGETS):
+	$(LD) $^ $(LDFLAGS) -o $@
+
+$(OBJDIR)/%.o: $(LOC_SRC)/%.cc | $(OBJDIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDE) -c -o $@ $<
+
+$(OBJDIR)/%.o: $(LOC_SRC)/%.c | $(OBJDIR)
+	$(CXX) $(CFLAGS) $(INCLUDE) -c -o $@ $<
+
+$(OBJDIR):
+	@mkdir -p $(OBJDIR)
 
 clean:
-	$(CLEAN)
+	rm -rf $(OBJDIR) core $(TARGETS)
+
