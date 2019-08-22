@@ -70,23 +70,29 @@ typedef struct uniform_online_state {
 
 void *uniform_pregen_init(uint64_t maxoutputs, __uint128_t maxvalue,
                           void *params) {
-  uint32_t i;
-  uniform_pregen_state *state =
-      (uniform_pregen_state *)malloc(sizeof(uniform_pregen_state));
-  assert(state != NULL);
+	uint32_t i;
+	uniform_pregen_state *state =
+		(uniform_pregen_state *)malloc(sizeof(uniform_pregen_state));
+	assert(state != NULL);
 
-  state->nextoutput = 0;
+	state->nextoutput = 0;
 
-  state->maxoutputs = maxoutputs;
-  state->outputs =
-      (__uint128_t *)malloc(state->maxoutputs * sizeof(state->outputs[0]));
-  assert(state->outputs != NULL);
-  RAND_bytes((unsigned char *)state->outputs,
-                    sizeof(*state->outputs) * state->maxoutputs);
-  for (i = 0; i < state->maxoutputs; i++)
-    state->outputs[i] = (1 * state->outputs[i]) % maxvalue;
+	state->maxoutputs = maxoutputs;
+	state->outputs =
+		(__uint128_t *)malloc(state->maxoutputs * sizeof(state->outputs[0]));
+	assert(state->outputs != NULL);
+	uint64_t nbytes = sizeof(*state->outputs) * state->maxoutputs;
+	uint8_t *ptr = (unsigned char *)state->outputs;
+	while (nbytes > (1ULL << 30)) {
+		RAND_bytes(ptr, 1ULL << 30);
+		ptr += (1ULL << 30);
+		nbytes -= (1ULL << 30);
+	}
+	RAND_bytes(ptr, nbytes);
+	for (i = 0; i < state->maxoutputs; i++)
+		state->outputs[i] = (1 * state->outputs[i]) % maxvalue;
 
-  return (void *)state;
+	return (void *)state;
 }
 
 int uniform_pregen_gen_rand(void *_state, uint64_t noutputs,

@@ -452,6 +452,7 @@ namespace CompressedCuckoo{
 
   inline block_t* allocate_cache_aligned_storage(uint64_t total_blocks){
     size_t allocation_size = sizeof(block_t) * total_blocks;
+		std::cout << "Size: " << allocation_size << '\n';
     block_t* storage = static_cast<block_t*>(aligned_alloc(
       g_cache_line_size_bytes, allocation_size));
     // Currently set to false because clear_swath hasn't been rigorously tested
