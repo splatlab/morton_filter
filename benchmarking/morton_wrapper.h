@@ -42,6 +42,14 @@ inline int m_lookup(__uint128_t val)
 	return 1;
 }
 
+inline int m_remove(__uint128_t val)
+{
+	if (!m_filter->delete_item(val)) {
+		return 0;
+	}
+	return 1;
+}
+
 inline __uint128_t m_range()
 {
 	return 1ULL << (n_bits + 8);

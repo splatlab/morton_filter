@@ -11,13 +11,16 @@
 
 #include <iostream>
 #include <stdint.h>
+#include <stdio.h>
+#include <math.h>
 #include <immintrin.h>  // portable to all x86 compilers
 #include <tmmintrin.h>
 #include <openssl/rand.h>
 #include <sys/time.h>
 
-#include "../morton_filter.h"
+#include <set>
 
+#include "../morton_filter.h"
 using namespace CompressedCuckoo;
 
 uint64_t tv2usec(struct timeval *tv) {
@@ -48,20 +51,23 @@ int main(int argc, char **argv)
 	uint64_t *vals;
 	uint64_t *other_vals;
 
-	/* initialize ququ filter */
 	Morton3_8 filter(nslots);
+
+	/* initialize ququ filter */
+	//if ((filter = ququ_init(nslots)) == NULL) {
+	//	fprintf(stderr, "Can't allocate ququ filter.");
+	//	exit(EXIT_FAILURE);
+	//}
 
 	/* Generate random values */
 	vals = (uint64_t*)malloc(nvals*sizeof(vals[0]));
 	RAND_bytes((unsigned char *)vals, sizeof(*vals) * nvals);
 	other_vals = (uint64_t*)malloc(nvals*sizeof(other_vals[0]));
 	RAND_bytes((unsigned char *)other_vals, sizeof(*other_vals) * nvals);
-  //memset(vals, 0, nvals*sizeof(vals[0]));
-	srand(0);
-	// for (uint64_t i = 0; i < nvals; i++) {
-	// 	//vals[i] = rand() % filter.metadata->range;
-	// 	vals[i] = (1 * vals[i]) % ((1ULL << (qbits + 8)) - 1);
-	// }
+	for (uint64_t i = 0; i < nvals; i++) {
+		vals[i] = (1 * vals[i]);
+		other_vals[i] = (1 * other_vals[i]);
+	}
 
 	struct timeval start, end;
 	struct timezone tzp;
@@ -73,10 +79,10 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Insertion failed");
 			exit(EXIT_FAILURE);
 		}
-	}
+         }
 	gettimeofday(&end, &tzp);
 	print_time_elapsed("Insertion time", &start, &end, nvals, "insert");
-	puts("");
+//	puts("");
 	gettimeofday(&start, &tzp);
 	for (uint64_t i = 0; i < nvals; i++) {
 		if (!filter.likely_contains(vals[i])) {
@@ -91,15 +97,28 @@ int main(int argc, char **argv)
 	/* Lookup hashes in the ququ filter */
 	for (uint64_t i = 0; i < nvals; i++) {
 		if (filter.likely_contains(other_vals[i])) {
-      nfps++;
+           nfps++;
 		}
 	}
 	gettimeofday(&end, &tzp);
 	print_time_elapsed("Random lookup:", &start, &end, nvals, "random lookup");
-  printf("%lu/%lu positives\n"
+        printf("%lu/%lu positives\n"
          "FP rate: 1/%f\n",
          nfps, nvals,
          1.0 * nvals / nfps);
+
+        //fprintf(stdout, "Checking ququ_remove\n");
+
+	gettimeofday(&start, &tzp);
+	for (uint64_t i = 0; i < nvals; i++) {
+           filter.delete_item(vals[i]);
+           //if (ququ_is_present(filter, vals[i])) {
+           //   fprintf(stderr, "Lookup true after deletion for %ld", vals[i]);
+           //   exit(EXIT_FAILURE);
+           //}
+        }
+	gettimeofday(&end, &tzp);
+	print_time_elapsed("Remove time", &start, &end, nvals, "remove");
 
 	return 0;
 }

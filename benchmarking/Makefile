@@ -1,4 +1,4 @@
-TARGETS= main bm
+TARGETS= main main_id bm
 
 ifdef D
 	DEBUG=-g
@@ -40,10 +40,12 @@ all: $(TARGETS)
 
 # dependencies between programs and .o files
 main:						main.o 
+main_id:						main_id.o 
 bm:							bm.o 
 
 # dependencies between .o files and .cc (or .c) files
 main.o: 			main.cc
+main_id.o: 			main_id.cc
 bm.o: 			bm.cc morton_wrapper.h
 
 #
